@@ -287,7 +287,12 @@ $(function () {
 			var regex = new RegExp('[^A-Za-z0-9_]');
 			//to prevent issues with the db and d3 only allows a-z and _
 	    	return regex.test(id)
-    	}
+		 }
+		 function validateName(name) {
+			 //to prevent issues with the db and d3 only allows a-z and _
+			var regex = new RegExp('[^A-Za-z0-9 ]');
+			return regex.test(name)
+		 }
 
 	    function errorCheck(){
 	    	return inputs.some( input => {
@@ -344,14 +349,7 @@ $(function () {
 			parent.tree.splice(y,1)
 			removeFacet(currentFacetName)
 			updateName(head.parent)
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-=======
 			$("#path"+head.parent.toLowerCase()).d3Click()
->>>>>>> Stashed changes
-=======
-			$("#path"+head.parent).d3Click()
->>>>>>> 0c4b6a64ff125940268e062b6f282d5999de8654
 			clearInputText()
 			//Clear operations list otherwise will give error. undo button works up until last remove sequence.
 			operations = []
@@ -586,7 +584,12 @@ $(function () {
 				return
 			}
 			if(validateId(inputs[0].value)){
-				complain(errorDiv, "Short Name input error: only letters A-Z and _ allowed")
+				complain(errorDiv, "Short Name input error: only alphanumeric and _ allowed")
+				return
+			}
+
+			if (validateName(inputs[1].value)) {
+				complain(errorDiv, "Long Name input error: only alphanumeric and space allowed")
 				return
 			}
 
