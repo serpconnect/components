@@ -1,0 +1,49 @@
+extends base
+block view-specific-scripts
+    // libraries - d3
+    script(src="//d3js.org/d3.v3.min.js" charset="utf-8")
+
+    // app
+    script(src="/js/presentation/presentation-index.js")
+
+    script(src="/js/util/color.js")
+    script(src="/js/util/usage.js")
+    script(src="/js/util/treeify.js")
+    script(src="/js/dataset.js")
+    script(src="/js/overview.js")
+    script(src="/js/info.js")
+
+block content
+    div.inner-content
+        h1#name.text-title 
+        p
+            | This website is developed to support the use and evolution of the &#32;
+            a(href="http://link.springer.com/article/10.1007/s11219-016-9322-x").link SERP-Test taxonomy
+            | &#32; which aims to bridge the gap between research and practice in
+            | software testing. This is an extension of the &#32;
+            a(href="http://serpconnect.cs.lth.se").link SERP-connect
+            | &#32; project.
+
+        p#presentation-description
+            | Descriptions of practical challenges and research results are
+            | classified and organized according to four facets. The taxonomy
+            | and related facets can be inspected below. For more information
+            | please refer to the paper cited above.
+
+    div.grid-container
+        div.content
+        div.overview-container
+            div.ov-tax-container
+                span#taxonomy
+                div#taxonomy_label.center 
+            div.width-30.column-spaced
+                div.overview-explanation
+                    div.explanation-container
+                        img(src="/img/mouse-over.png")#hand.square
+                        p#hover-facet-title  Hover over the table to see which facet you are currently viewing
+                    div.explanation-container
+                        a#square.square
+                        h3#facet-title Serp
+                    p#facet-explanation Click the tables on the left to get more information about the facets
+                    div.entry-count
+
