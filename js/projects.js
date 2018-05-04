@@ -2,7 +2,7 @@ $(function() {
 	var user_data = undefined
 	var all_projects = []
 
-	document.getElementById('projects').classList.add('current-view')
+	//document.getElementById('projects').classList.add('current-view')
 
 	function delete_project(evt) {
 		var row = this.parentNode.parentNode // tr > td > btn

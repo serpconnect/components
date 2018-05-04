@@ -21,8 +21,8 @@ $(function () {
 
             querystring[name] = value
         }
-    }
-    var	currentFacetName = document.getElementById('facetName').innerText
+	 }
+    var	currentFacetName = document.getElementById('facetName').innerText.toLowerCase()
 	/* used to store order in which elements are added so user can reverse operations */
 	var operations = []
 	$('#project-taxonomy').text('extend base-taxonomy for project: ' + querystring.p)
@@ -316,6 +316,10 @@ $(function () {
 			parent.tree.splice(y,1)
 			removeFacet(currentFacetName)
 			updateName(head.parent)
+<<<<<<< Updated upstream
+=======
+			$("#path"+head.parent.toLowerCase()).d3Click()
+>>>>>>> Stashed changes
 			clearInputText()
 			//Clear operations list otherwise will give error. undo button works up until last remove sequence.
 			operations = []
