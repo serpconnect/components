@@ -23,7 +23,6 @@ $(function () {
     }).then(collection => {
 		if (!collection) throw new Error("You are not a member of this collection")
 		setupName(collection)
-		$('#taxonomy-extension').text('extend taxonomy for collection: ' + collection.name)
 		return api.v1.collection.isOwner(collection.id)
     }).then(owner =>{
 		isOwner=owner;
@@ -76,17 +75,4 @@ $(function () {
     })
 
 	$("#profile").addClass("current-view");
-	 
- 	Dataset.loadDefault(data => {
-		var baseSerp
-		if (!cID) return
-		api.v1.taxonomy().then(serp => {
-			baseSerp = serp
-		})
-		api.v1.collection.taxonomy(cID).then(serpExt => {
-			var taxonomy = new window.Taxonomy(baseSerp.taxonomy)
- 			taxonomy.extend(serpExt.taxonomy)
-			window.overview.renderGraph('#taxonomy', data, taxonomy)
-		})
-	})
 })
