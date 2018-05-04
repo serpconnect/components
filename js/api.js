@@ -1,5 +1,5 @@
 $(function () {
-    var project = 'serp-test';
+    var project = window.backendProject;
 
     function ajax(method, url, data) {
         return $.ajax(url, {
