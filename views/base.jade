@@ -4,7 +4,7 @@ html
         meta(charset="utf-8")
         meta(http-equiv="Content-Type", content="text/html;charset=utf-8")
         meta(name="viewport", content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1")
-        title SERP-connect | a web-tool for linking practical challenges with research results in software testing
+        title= config.title
 
         <!--changed to all.css-->
         link(rel='stylesheet', href='/css/all.css')
@@ -28,8 +28,8 @@ html
                 a(href="/")    
                     img(src="/img/serp-logo-lofi.png")#logo
                     div.logo-container    
-                        div.serp-logo SERP
-                        div.project-logo Test
+                        div.serp-logo= config.project
+                        div.project-logo= config.sitename
                 div#header
                     div.views
                         a(href="")#profile.view-title
