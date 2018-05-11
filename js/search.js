@@ -6,25 +6,14 @@ $(document).ready(function () {
     $("#collection-dropdown").val("all");
     // stores all the queued entries
     var dataset = [];
+    var activeTaxonomy = undefined
+    var taxonomyCache = {}
     var selectedEntries = []
     var loggedIn = false
     var admin = false;
     var serpTaxonomy = undefined
 
-    var currentClassification = {
-        adapting: false,
-        solving: false,
-        assessing: false,
-        improving: false,
-        planning: false,
-        design: false,
-        execution: false,
-        analysis: false,
-        people: false,
-        information: false,
-        sut: false,
-        other: false
-    }
+    var currentClassification = {}
 
     function getCollectionFromPreviousPage() {
         var type = window.location.hash
@@ -35,6 +24,19 @@ $(document).ready(function () {
         return document.getElementById('collection-dropdown').value
     }
 
+    function buildTaxonomyNodeCache(taxonomy) {
+        taxonomyCache = {
+            id2node: {},
+            leaves: []
+        }
+
+        taxonomy.root.map(function cache(node) {
+            taxonomyCache.id2node[node.id()] = node
+            if (node.isTreeLeaf())
+                taxonomyCache.leaves.push(node)
+            node.map(cache)
+        })
+    }
 
     // When clicking on a table header in the inspection view, bring up all
     // entities (classified examples) and present them in a modal.
@@ -141,27 +143,6 @@ $(document).ready(function () {
         var nodes = []
         var nodemap = {}
 
-        // Map extended facet onto parent in serp taxonomy
-        var ext2serp = {}
-        if (extendedTaxonomy) {
-            while (extendedTaxonomy.length) {
-                var facet = extendedTaxonomy.shift()
-
-                if (ext2serp[facet.parent]) {
-                    ext2serp[facet.id] = ext2serp[facet.parent]
-                    continue
-                }
-
-                var parent = serpTaxonomy.root.dfs(facet.parent)
-                if (parent) {
-                    ext2serp[facet.id] = parent.id()
-                    continue
-                }
-
-                extendedTaxonomy.push(facet)
-            }
-        }
-
         graph.nodes.forEach(node => {
             node.serpClassification = {}
             node.entryType = node.type
@@ -179,19 +160,15 @@ $(document).ready(function () {
             var facet = edge.type
             var node = nodes[nodemap[String(edge.source)]]
 
-            if (ext2serp[facet]) {
-                var parent = ext2serp[facet]
-                node.serpClassification[parent.toLowerCase()] = true
-            }
-
-            node.serpClassification[edge.type.toLowerCase()] = true
+            node.serpClassification[edge.type] = true
         })
 
         return nodes
     }
     function getCollection(id, cb) {
-        if (collections[id].entries) {
-            cb(collections[id].entries)
+        var cc = collections[id]
+        if (cc && cc.entries && cc.taxonomy) {
+            cb(cc.entries, cc.taxonomy)
             return
         }
 
@@ -203,29 +180,42 @@ $(document).ready(function () {
                 var graph = promise[0]
                 var taxonomy = promise[1].taxonomy
 
-                collections[id].entries = processGraph(graph, collections[id].name, taxonomy)
-                collections[id].taxonomy = taxonomy
+                var cc = collections[id]
+                cc.entries = processGraph(graph, collections[id].name, taxonomy)
+                cc.taxonomy = new Taxonomy()
+                cc.taxonomy.root = serpTaxonomy.tree()
+                cc.taxonomy.extend(taxonomy)
 
-                cb(collections[id].entries)
+                cb(cc.entries, cc.taxonomy)
             })
-            .catch(reason => cb([]))
+            .catch(reason => {
+                cb([], new Taxonomy())
+                console.error(reason)
+            })
     }
-    function updateDataset(toset) {
+    function updateDataset(toset, taxonomy) {
         dataset = toset
+        activeTaxonomy = taxonomy
+        buildTaxonomyNodeCache(activeTaxonomy)
         updateViews()
+    }
+    function updateViews() {
+        updateTableHeader(activeTaxonomy)
+        updateFilterList(activeTaxonomy)
+        updateLists(dataset, activeTaxonomy)
     }
     function selectDataset(value) {
         if (value === "all") {
             // set dataset = all
             if (mainDataset) {
-                updateDataset(mainDataset)
+                updateDataset(mainDataset, serpTaxonomy)
                 return
             }
 
             api.v1.entry.all()
                 .done(graph => {
                     mainDataset = processGraph(graph)
-                    updateDataset(mainDataset)
+                    updateDataset(mainDataset, serpTaxonomy)
                 })
                 .fail((reason, err) => window.alert(err))
         } else if (value === "mine") {
@@ -244,12 +234,12 @@ $(document).ready(function () {
                         if (!exists)
                             dataset.push(entries[i])
                     }
-                    updateDataset(dataset)
+                    updateDataset(dataset, serpTaxonomy)
                 })
             })
         } else {
             // use specific collection
-            getCollection(value, entries => updateDataset(entries))
+            getCollection(value, updateDataset)
         }
     }
 
@@ -277,14 +267,22 @@ $(document).ready(function () {
     // Append a select element if logged in so user can export to new/existing
     // collection/
     window.api.v1.account.self().done(self => {
-        $('tr').append(Element('th').text("export"))
+        var view = document.querySelector('.table-view-area')
 
-        $('.table-view-area')
-            .append(Element('button').addClass('edit-btn').text('export').click(exportEntries))
-            .append(Element('button').addClass('edit-btn').text('select all').click(selectAllEntries))
+        var exportBtn = el('button.edit-btn', ['export'])
+        exportBtn.addEventListener('click', exportEntries, false)
+        view.appendChild(exportBtn)
+
+        var selectAllBtn = el('button.edit-btn', ['select all'])
+        selectAllBtn.addEventListener('click', selectAllEntries, false)
+        view.appendChild(selectAllBtn)
 
         loggedIn = true
         admin = self.trust === "Admin";
+
+        /* Regen everything to make sure user can export */
+        if (activeTaxonomy)
+            updateViews()
     })
 
     api.v1.taxonomy().then(data => {
@@ -338,22 +336,88 @@ $(document).ready(function () {
         window.location.hash = this.value
     })
 
-    // classification took place
-    $(".checkbox input").on("change", function (event) {
-        var subfacet = $(this).attr("name");
+    function handleFilterEvent(evt) {
+        var subfacet = this.name
         currentClassification[subfacet] = !currentClassification[subfacet];
-        updateViews(dataset);
-    });
+        updateLists(dataset, activeTaxonomy);
+    }
+    function createCheckboxElement(node) {
+        var div = el('input', { 'type': 'checkbox', 'name': node.id() })
+        div.addEventListener('change', handleFilterEvent, false)
+        return div
+    }
+    function updateFilterList(taxonomy) {
+        var div = document.querySelector('div.facets > div.filters')
+        while (div.lastChild)
+            div.removeChild(div.lastChild)
 
-    function updateViews(entries) {
+        var facets = taxonomy.root.map(function build(node, i) {
+            if (!node.isTreeLeaf()) {
+                return el('div.facet-title', [
+                    node.name(),
+                    el('label.checkbox', [
+                        el('input', { 'type':'checkbox', name:node.id() }),
+                        el('span', [' '])
+                    ]),
+                    node.map(build)
+                ])
+            }
+
+            var title = taxonomyCache.id2node[node.id()].desc ||
+                window.info.getInfo(node.id().toLowerCase()).description
+
+            return el('label.sub-facet', {
+                'title': title,
+                'for': 'checkbox'
+            }, [
+                node.name(),
+                el('label.checkbox', [
+                    createCheckboxElement(node),
+                    el('span', [' '])
+                ])
+            ])
+        })
+
+        for (var i = 0; i < facets.length; i++)
+            div.appendChild(facets[i])
+    }
+
+    /* This will rebuild the overview table based on the given taxonomy */
+    function updateTableHeader(taxonomy) {
+        var div = document.getElementById('table-view')
+        while (div.lastChild)
+            div.removeChild(div.lastChild)
+
+        var thead = el('thead', [
+            el('tr', [
+                el('th', ['entries']),
+                taxonomyCache.leaves.map(node => {
+                    return el('th.clickable', {
+                        'data-facet': node.id(),
+                        'title': `inspect ${node.name()}`
+                    }, [node.name()])
+                }),
+                loggedIn && el('th', ['export'])
+            ])
+        ])
+
+        div.appendChild(thead)
+        div.appendChild(el('tbody'))
+    }
+
+    function updateLists(dataset, taxonomy) {
         clearViews();
+
+        var overview = document.querySelector(".overview-area")
+        var table = document.getElementById('table-view')
+
         var currentEntries = 0;
         for (var i = 0; i < dataset.length; i++) {
             var entry = dataset[i];
             if (fitsCurrentClassification(entry)) {
                 currentEntries++;
-                insertIntoTable(entry);
-                insertIntoOverview(entry);
+                insertIntoTable(table, entry, i);
+                insertIntoOverview(overview, entry, i);
             }
         }
         updateResultsText(currentEntries, dataset.length);
@@ -364,20 +428,36 @@ $(document).ready(function () {
     }
 
     function filterIsDefined() {
-        for (var subfacet in currentClassification) {
-            if (currentClassification[subfacet]) {
-                return true;
-            }
-        }
-        return false;
+        return Object.keys(currentClassification).length > 0;
     }
 
     function fitsCurrentClassification(entry) {
-        // check if classification exists and then if entry isn't classified,
-        // if that's the case: throw it from the list
-        for (var subfacet in currentClassification) {
-            if (currentClassification[subfacet] && !entry.serpClassification[subfacet]) {
-                return false;
+        // Algorithm:
+        //  for each selected facet filter
+        //      find facet node in taxonomy (using id->node memo cache)
+        //      check if any entry classification exists in its sub tree
+        //      if not: entry does not have filtering facet, return false
+        //      if yes: entry is classified with this facet, continue
+        //  return true
+        //
+        var filterFacets = Object.keys(currentClassification)
+        for (var i = 0; i < filterFacets.length; i++) {
+            var subfacet = filterFacets[i]
+            if (currentClassification[subfacet]) {
+                var facetNode = taxonomyCache.id2node[subfacet] //activeTaxonomy.root.dfs(subfacet)
+                /* no entry uses this node? */
+                if (!facetNode) return false
+
+                var entryFacets = Object.keys(entry.serpClassification)
+                var found = false
+                for (var j = 0; j < entryFacets.length; j++) {
+                    if (facetNode.dfs(entryFacets[j])) {
+                        found = true
+                        break
+                    }
+                }
+                if (!found)
+                    return false
             }
         }
         return true;
@@ -406,232 +486,124 @@ $(document).ready(function () {
         } else if (sortingOption == "collections") {
             dataset.sort(alphabeticalComparator);
         }
-        updateViews(dataset);
+        updateLists(dataset, activeTaxonomy);
     });
 
-    function getClassification() {
-        var classification = {
-            "intevention": null,
-            "adapting": null,
-            "solving": null,
-            "assessing": null,
-            "improving": null,
-            "planning": null,
-            "design": null,
-            "execution": null,
-            "analysis": null,
-            "people": null,
-            "information": null,
-            "sut": null,
-            "other": null
-        };
-
-        // iterate over each checkbox that has been checked
-        $(".checkbox input:checked").each(function () {
-            var subfacet = $(this).attr("name");
-            classification[subfacet] = [];
-            var $parent = $(this).closest(".sub-facet");
-        });
-        return classification;
-    }
-
     function clearViews() {
-        $(".overview-area").children().empty();
-        $(".overview-entry").remove();
-        $("#table-body").children().empty();
+        var overview = document.querySelector('.overview-area')
+        while (overview.lastChild)
+            overview.removeChild(overview.lastChild)
+
+        var table = document.getElementById('table-view')
+        table.removeChild(table.querySelector('tbody'))
+        table.appendChild(el('tbody'))
     }
 
     function createOverviewTags(entry) {
-        var $entryTags = Element("div").addClass("entry-tags");
+        var facets = Object.keys(entry.serpClassification)
 
-        if (filterIsDefined()) {
-            for (var subfacet in currentClassification) {
-                if (!currentClassification[subfacet] && entry.serpClassification[subfacet]) {
-                    var $tag = Element("div").addClass("entry-tag").text(subfacet);
-                    $entryTags.append($tag);
-                }
-            }
-        } else {
-            for (var subfacet in entry.serpClassification) {
-                if (entry.serpClassification[subfacet]) {
-                    var $tag = Element("div").addClass("entry-tag").text(subfacet);
-                    $entryTags.append($tag);
-                }
-            }
-        }
-        return $entryTags;
+        return facets.map(facet => {
+            var node = taxonomyCache.id2node[facet] // activeTaxonomy.root.dfs(facet)
+            return node && el('div.entry-tag', [
+                currentClassification[node.id()] ?
+                    el('strong', [node.name()]) : node.name()
+            ])
+        })
     }
 
-    function insertIntoOverview(entry) {
-        var classification = entry["serpClassification"];
+    function insertIntoOverview(overview, entry, entryNumber) {
+        var entryTitleText = entry["description"] || entry["reference"] || entry["doi"];
 
         // created the individual html elements
-        var $overviewEntry = Element("div").addClass("overview-entry");
-        var $entryType = Element("div").addClass("entry-type").text(entry["entryType"]);
+        var div = el('div.overview-entry', [
+            el('div.entry-type', [entry.entryType]),
+            el('div.entry-title', {
+                'data-entry-number': entryNumber
+            }, [
+                entryTitleText
+            ]),
+            el('div.entry-tags', createOverviewTags(entry))
+        ])
 
+        div.querySelector('.entry-title')
+            .addEventListener("click", handleEntryClickEvent, false)
 
-        var entryTitleText = entry["description"] || entry["reference"] || entry["doi"];
-        var $entryTitle = Element("div").addClass("entry-title").text(entryTitleText);
-        $entryTitle.data("entry-number", dataset.indexOf(entry));
-
-        var $entryTags = createOverviewTags(entry);
-
-        // append them to the parent element
-        $overviewEntry.append($entryType);
-        $overviewEntry.append($entryTitle);
-        $overviewEntry.append($entryTags);
         // insert into the DOM
-        $(".overview-area").append($overviewEntry);
+        overview.appendChild(div);
+    }
 
+    function inspectEntry(entryNumber, entryId, collectionId) {
+        function deleteEntry() {
+            toggleButtonState()
+            api.v1.admin.deleteEntry(entryId)
+                .done(() => {
+                    window.modals.clearAll();
+                    dataset.splice(entryNumber, 1);
+                    updateLists(dataset, activeTaxonomy);
+                })
+                .fail(xhr => alert(xhr.responseText))
+        }
 
+        var removeBtn = el("button.btn", ["delete entry"])
+        removeBtn.addEventListener('click', deleteEntry, false)
 
-
-        $(".entry-title").unbind("click").on("click", function (evt) {
-            var entryNumber = $(this).data("entry-number");
-            var id = dataset[entryNumber].id
-            var CID = getCollectionID()
-            function deleteEntry() {
-                toggleButtonState()
-                api.v1.admin.deleteEntry(id)
-                    .done(() => {
-                        window.modals.clearAll();
-                        dataset.splice(entryNumber, 1);
-                        updateViews();
-                    })
-                    .fail(xhr => alert(xhr.responseText))
-
-            }
-
-            var removeBtn = el("button.btn", ["delete entry"])
-            removeBtn.addEventListener('click', deleteEntry, false)
-
-            function insertid(id) { return 0 }
-
-
-            Promise.all([
-                window.api.v1.entry.get(id),
-                window.api.v1.entry.taxonomy(id)
-            ]).then(promise => {
-                window.modals.entryModal(CID, promise[0], promise[1],
-                    admin ? { button: removeBtn } : {}
-                )
-            })
+        Promise.all([
+            window.api.v1.entry.get(entryId),
+            window.api.v1.entry.taxonomy(entryId)
+        ]).then(promise => {
+            window.modals.entryModal(collectionId, promise[0], promise[1],
+                admin ? { button: removeBtn } : {}
+            )
         })
     }
 
-    // creates a table row with the data contained in entry
-    function insertIntoTable(entry, position) {
-        var classification = entry["serpClassification"];
+    function handleEntryClickEvent(evt) {
+        var entryNumber = parseInt(this.dataset.entryNumber)
+        var entryId = dataset[entryNumber].id
+        var collectionId = getCollectionID()
+        inspectEntry(entryNumber, entryId, collectionId)
+    }
 
-        // let's build the table row for this entry
-        var $row = Element("tr");
-        var maxLength = 35;
-        // choose as the row descriptor either the project name, description
-        // (for challenges), or the reference (for research results)
-        var entryTitle = entry["projectName"] || entry["description"] || entry["reference"];
-        entryTitle = entryTitle.length > maxLength ?
-            entryTitle.substring(0, maxLength - 3) + "..." :
-            entryTitle.substring(0, maxLength);
-        var titleCell = Element("td").text(entryTitle || entry["description"] || entry["reference"]);
-        titleCell.data("entry-number", dataset.indexOf(entry));
-
-        $row.append(titleCell);
-
-        createCell("intervention", true);
-
-        // effect
-        createCell("solving");
-        createCell("adapting");
-        createCell("assessing");
-        createCell("improving");
-
-        // scope
-        createCell("planning", true);
-        createCell("design", true);
-        createCell("execution", true);
-        createCell("analysis", true);
-
-        // context
-        createCell("people");
-        createCell("information");
-        createCell("sut");
-        createCell("other");
-
-        if (loggedIn) {
-            var mark = Element("input").attr("type", "checkbox").val(entry.id)
-
-            if (selectedEntries.indexOf(entry.id) >= 0)
-                mark.attr('checked', 'checked')
-
-            mark.on('change', function (evt) {
-                if (this.checked) {
-                    if (selectedEntries.indexOf(entry.id) === -1)
-                        selectedEntries.push(entry.id)
-                } else {
-                    selectedEntries.splice(selectedEntries.indexOf(entry.id), 1)
-                }
-            })
-
-            $row.append(mark)
-        }
-
-        // insert the row into the specified position
-        if (position) {
-            $("#table-view tbody tr:nth-child(" + position + ")").replaceWith($row);
+    function handleExportCheckbox (evt) {
+        var entryId = this.value
+        if (this.checked) {
+            if (selectedEntries.indexOf(entryId) === -1)
+                selectedEntries.push(entryId)
         } else {
-            // append row to the end of the table
-            $("#table-body").append($row);
+            selectedEntries.splice(selectedEntries.indexOf(entryId), 1)
         }
-
-
-
-        // refresh on-click listeners for all entries in first column;
-        // (a click initiates an entry inspection)
-        $("td:first-child").unbind("click").on("click", function (evt) {
-            var entryNumber = $(this).data("entry-number");
-            var id = dataset[entryNumber].id
-            var CID = getCollectionID()
-            function deleteEntry() {
-                toggleButtonState()
-                api.v1.admin.deleteEntry(id)
-                    .done(() => {
-                        window.modals.clearAll();
-                        dataset.splice(entryNumber, 1);
-                        updateViews();
-                    })
-                    .fail(xhr => alert(xhr.responseText))
-
-            }
-
-            var removeBtn = el("button.btn", ["delete entry"])
-            removeBtn.addEventListener('click', deleteEntry, false)
-
-            Promise.all([
-                window.api.v1.entry.get(id),
-                window.api.v1.entry.taxonomy(id)
-            ]).then(promise => {
-                window.modals.entryModal(CID, promise[0], promise[1],
-                    admin ? { button: removeBtn } : {}
-                )
-            })
+    }
+    function createExportCheckbox(entry) {
+        var exportCheckbox = el('input', {
+            'type':'checkbox',
+            'value':entry.id
         })
 
-        function createCell(subfacet, alternating) {
-            var $td = Element("td");
-            classification[subfacet] ? $td.addClass("filled-cell") : "";
-            alternating ? $td.addClass("alternating-group") : "";
-            $row.append($td);
-        }
+        if (selectedEntries.indexOf(entry.id) >= 0)
+            exportCheckbox.setAttribute('checked', 'checked')
+
+        exportCheckbox.addEventListener('change', handleExportCheckbox, false)
     }
+    function insertIntoTable(table, entry, entryNumber) {
+        var classification = entry.serpClassification
 
+        var row = el('tr', [
+            el('td', {'data-entry-number': entryNumber }, [
+                el('div.scroll-wrapper', [
+                        entry.description || entry.reference
+                ])
+            ]),
+            taxonomyCache.leaves.map(node => {
+                var classified = classification[node.id()] ? '.filled-cell' : ''
+                return el('td' + classified)
+            }),
+            loggedIn && createExportCheckbox(entry)
+        ])
 
-
-    // convenience function for capitalizing sentences
-    // TODO: rip performance (don't extend prototype, use function instead)
-    String.prototype.capitalize = function () {
-        return this.charAt(0).toUpperCase() + this.slice(1);
+        row.firstChild
+            .addEventListener('click', handleEntryClickEvent, false)
+        table.querySelector('tbody').appendChild(row)
     }
-
 });
 
 
