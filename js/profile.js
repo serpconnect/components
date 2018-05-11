@@ -167,10 +167,17 @@ $(function() {
             var a = el('a.view-area-tab.unactive-tab', {href : "/users.html"}, ['users'])
             var b = el('a.view-area-tab.unactive-tab', {href : "/entries.html"}, ['pending entries'])
             var c = el('a.view-area-tab.unactive-tab', {href : "/collections.html"}, ['all collections'])
+            
             var div = document.querySelector('.profile-area-wrapper')
             div.insertBefore(a, div.lastChild)
             div.insertBefore(b, div.lastChild)
             div.insertBefore(c, div.lastChild)
+            
+            var d = el('div', [
+                el('a', { href: "/project.html?p=" + window.backendProject}, ["edit project taxonomy"])
+            ])
+            document.querySelector('.user-options').appendChild(d)
+
             api.v1.admin.pending().done(showPendingEntries)
         }
         update(self, collections)

@@ -16,7 +16,7 @@
 }
 
 
-.user-email, #logout, #change, #delete {
+.user-email {
     font-size: @profile-title-font-size;
     margin: 0;
     padding: 0;
@@ -30,27 +30,25 @@
 .user-options {
     margin-top: 15px;
     margin-bottom: 15px;
-    width: 250px;
-}
 
-#logout, #change, #delete {
-    margin-top: -5px;
-    cursor: pointer;
-    display: inline-block;
 
-  -webkit-transition: color 0.2s ease;
-    -moz-transition: color 0.2s ease;
-    -o-transition: color 0.2s ease;
-    -ms-transition: color 0.2s ease;
-    transition: color 0.2s ease;
+    > div {
+        cursor: pointer;
+        display: block;
 
-    &:hover {
         -webkit-transition: color 0.2s ease;
         -moz-transition: color 0.2s ease;
         -o-transition: color 0.2s ease;
         -ms-transition: color 0.2s ease;
         transition: color 0.2s ease;
-        color: (@light-gray - #333);
+
+        font-size: @profile-title-font-size;
+        margin: 0;
+        padding: 0;
+
+        &:hover {
+            color: (@light-gray - #333);
+        }
     }
 }
 
