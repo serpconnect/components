@@ -180,7 +180,7 @@ $(document).ready(function() {
             }).fail(reason => {
                 window.alert(reason)
                 setDropdownSilent($dropdown, oldLevel)
-            })
+            }).done(() => modals.clearAll())
         }, function cancel() {
             setDropdownSilent($dropdown, oldLevel)
         })
