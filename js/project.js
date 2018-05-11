@@ -332,7 +332,10 @@ $(function () {
 
 	    function remove(){
 	    	var head = serp.dfs(currentFacetName)
-	    	if(head.parent=='root'){
+	    	var isBase = baseTaxonomyData.taxonomy.some(el=>{
+	    		return head.short.toLowerCase() == el.id.toLowerCase()
+	    	})
+	    	if(isBase){ //prevents base taxonomy being removed
 				complain(errorDiv, "Cannot remove Base Taxonomy")
 				return
 			}
@@ -343,12 +346,14 @@ $(function () {
 					children.shift()
 				}
 			}
-			//remove from taxonomy
 			var parent = serp.dfs(head.parent)
 			var y = parent.tree.indexOf(head)
 			parent.tree.splice(y,1)
 			removeFacet(currentFacetName)
 			updateName(head.parent)
+			removeEvents()
+			removeSvg()
+			project.renderGraph('#taxonomy', dataset, taxonomy, serp,[baseTaxonomyData, extendedTaxonomyData])
 			$("#path"+head.parent.toLowerCase()).d3Click()
 			clearInputText()
 			//Clear operations list otherwise will give error. undo button works up until last remove sequence.
