@@ -13,6 +13,9 @@ html
         link(rel="shortcut icon" href="/favicon.ico")
         script(src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js")
 
+        script.
+            window.backendProject = "#{settings.backend}";
+            
         script(src="/js/api.js")
         if env == "dev"
             script(src="/js/api-dev.js")
