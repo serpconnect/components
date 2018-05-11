@@ -46,9 +46,9 @@
                 		})
                 	})
 	                .fail(xhr => {
-	                	window.modals.toggleButtonState()
 						updateError(modal, xhr.responseText)
-					})
+                    })
+                    .always(() => window.modals.toggleButtonState())
 			})
 
 			document.body.appendChild(modal)
