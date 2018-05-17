@@ -455,8 +455,10 @@ $(function () {
 				document.getElementById('facetName').innerText = name	
 			else
 				document.getElementById('facetName').innerText = name.substring(0,12)+"...";
-			svg.select("#text"+name)
-				.style("fill", '#FFFB00')
+			if(d.name!='root'){
+				svg.select("#text"+name)
+					.style("fill", '#FFFB00')
+			}
 		}
 		function relativeDepth(d){
 			return d.depth - tier
@@ -541,7 +543,8 @@ $(function () {
 					toggleMouseEvents(d, false)
 				})
 			}
-			if(d.name=='root')
+			//can extend from root in proj ui
+			if(d.name=='root' && cID)
 				return
 			svg.selectAll("text")
 				.style("stroke", 'none')
