@@ -1,6 +1,6 @@
 $(document).ready(function() {
     $("#project").addClass("current-view");
-    
+    var currentTree = undefined
     var querystring = {}
     /* Naive querystring ?a=1&b=c --> {a:1, b:'c'} mapping */
     if (window.location.search) {
@@ -13,15 +13,20 @@ $(document).ready(function() {
             querystring[name] = value
         }
     }
+    $("#matches").click(evt => {
+        Dataset.loadDefault(setUpMap)
+    })
+
+    function setUpMap(set) {
+        window.components.taxonomyLayoutModal(set,currentTree)
+    }
     
-    console.log('dataset')
 	Dataset.loadDefault(data => {
-        console.log(data)
 	    if (!querystring.p) return
 		api.v1.project.taxonomy(querystring.p).then(serp => {
 			var baseTaxonomyData = serp
             var taxonomy = new window.Taxonomy(serp.taxonomy)
-            console.log(baseTaxonomyData, taxonomy)
+            currentTree = taxonomy
 			window.project.renderGraph('#taxonomy', data, taxonomy, taxonomy.root,[baseTaxonomyData])
 		})
 	})

@@ -51,7 +51,7 @@ $(function () {
 		Dataset.loadCollection(cID, setUpMap)
     })
 
-    function setUpMap(set, taxonomy) {
+    function setUpMap(set) {
     	window.components.taxonomyLayoutModal(set,currentTree)
     }
 
