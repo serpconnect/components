@@ -335,10 +335,17 @@ $(function () {
 	    	var isBase = baseTaxonomyData.taxonomy.some(el=>{
 	    		return head.short.toLowerCase() == el.id.toLowerCase()
 	    	})
-	    	if(isBase){ //prevents base taxonomy being removed
+	    	//if in project editor, you can't remove the root node \
+	    	if( head.short.toLowerCase()== 'root' && querystring.p){ 
 				complain(errorDiv, "Cannot remove Base Taxonomy")
 				return
 			}
+			//if in collection editor you can't remove any base taxonomy nodes
+	    	else if(isBase && cID){ 
+				complain(errorDiv, "Cannot remove Base Taxonomy")
+				return
+			}
+			//remove children of node head
 			var children = head.tree
 			if ( children && children.length > 0 ) {
 				while(children.length > 0){
@@ -354,8 +361,8 @@ $(function () {
 			removeEvents()
 			removeSvg()
 			project.renderGraph('#taxonomy', dataset, taxonomy, serp,[baseTaxonomyData, extendedTaxonomyData])
-			$("#path"+head.parent.toLowerCase()).d3Click()
 			clearInputText()
+			$("#path"+head.parent.toLowerCase()).d3Click()
 			//Clear operations list otherwise will give error. undo button works up until last remove sequence.
 			operations = []
 	    }
